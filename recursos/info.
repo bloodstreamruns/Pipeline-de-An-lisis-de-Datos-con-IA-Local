@@ -1,0 +1,2 @@
+# Almacena los recursos estáticos de la interfaz: íconos, imágenes y hojas de estilo QSS. 
+# Es referenciada por las clases de interfaces/ para aplicar estilos y cargar elementos visuales.
