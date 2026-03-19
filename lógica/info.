@@ -1,0 +1,3 @@
+#Contiene los módulos de lógica de negocio de la aplicación. Cada archivo implementa una responsabilidad específica del pipeline: 
+# autenticación, construcción de prompts, comunicación con Ollama, ejecución dinámica del código generado y persistencia de resultados. 
+# Estos módulos operan de forma independiente de la interfaz y son invocados desde las clases de interfaces/.
