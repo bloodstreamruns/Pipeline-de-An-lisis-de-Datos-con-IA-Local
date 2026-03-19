@@ -1,0 +1,2 @@
+# Almacena los archivos de datos persistentes de la aplicación. Contiene el registro de usuarios con sus credenciales hasheadas y roles. 
+# No debe subirse al repositorio con datos reales; se incluye únicamente un archivo de ejemplo con la estructura esperada. Formato JSON.
