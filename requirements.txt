@@ -1,0 +1,1 @@
+# Lista de dependencias de Python necesarias para ejecutar el proyecto.
