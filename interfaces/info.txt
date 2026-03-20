@@ -1,3 +1,4 @@
 # Contiene las clases de cada pantalla de la aplicación. Cada archivo define un QWidget 
 # independiente con su layout, widgets y conexiones a los módulos de core/. 
 # Las pantallas son instanciadas y gestionadas desde app.py.
+# Fin
