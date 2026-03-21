@@ -1,3 +1,6 @@
+#Esta es la interfaz para la administración de usuarios. Crea, modifica y elimina los usuarios. 
+#Sólo un usuario administrador puede entrar a ella. Se debe poder ingresar a ella por medio del menú de la barra superior.
+
 import sys
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QHBoxLayout, QVBoxLayout, QLabel,
