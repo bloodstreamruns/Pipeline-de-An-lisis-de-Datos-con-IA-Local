@@ -1,12 +1,16 @@
 import sys
+import pandas as pd
+import crud
 from PyQt6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout,
-    QHBoxLayout, QLineEdit, QPushButton, QLabel,
-    QFrame, QTreeWidget, QTreeWidgetItem,
-    QMessageBox, QFileDialog, QToolTip
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QLineEdit, QPushButton, QLabel, QFrame, QTreeWidget,
+    QTreeWidgetItem, QMessageBox, QFileDialog
 )
 from PyQt6.QtCore import Qt
 
+# matplotlib para graficar en PyQt6
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
 
 class Script(QMainWindow):
     def __init__(self):
@@ -14,18 +18,9 @@ class Script(QMainWindow):
         self.setWindowTitle("Formulario Script")
         self.setMinimumSize(1100, 700)
 
-        # Tooltip más rápido
-        QToolTip.setFont(self.font())
+        self.current_data = pd.DataFrame()  # DataFrame actual
 
-        # Estilo Global
-        self.setStyleSheet("""
-            QMainWindow { background-color: #0F0F0F; }
-            QWidget { color: #BABABA; font-family: 'Segoe UI', Arial; }
-            QLabel { border: none; }
-            QPushButton { border-radius: 4px; padding: 6px; }
-        """)
-
-        # Main Layout
+        # ---------------- Main Layout ----------------
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QHBoxLayout(central_widget)
@@ -41,16 +36,6 @@ class Script(QMainWindow):
         # Buscador
         search_bar = QLineEdit()
         search_bar.setPlaceholderText(" 🔍 Buscar resultados")
-        search_bar.setToolTip("Buscar archivos o scripts")
-        search_bar.setStyleSheet("""
-            QLineEdit {
-                background-color: #1E1E1E;
-                border: 1px solid #333;
-                border-radius: 6px;
-                padding: 8px;
-                color: white;
-            }
-        """)
         sidebar_layout.addWidget(search_bar)
 
         # Árbol
@@ -62,31 +47,26 @@ class Script(QMainWindow):
             QTreeWidget::item { padding: 8px; color: #AAA; }
             QTreeWidget::item:selected { background-color: #2A2A2A; color: white; border-radius: 4px; }
         """)
-
         item_ventas = QTreeWidgetItem(self.tree, ["📁 Ventas"])
         item_ventas.addChild(QTreeWidgetItem(["📄 distribucion_region"]))
         item_ventas.addChild(QTreeWidgetItem(["📄 tendencia_mensual"]))
         item_ventas.setExpanded(True)
-
         self.tree.addTopLevelItem(item_ventas)
         self.tree.addTopLevelItem(QTreeWidgetItem(["📁 Clientes"]))
         self.tree.addTopLevelItem(QTreeWidgetItem(["📁 Inventario"]))
-
         sidebar_layout.addWidget(self.tree)
 
         # Botones
         actions_layout = QHBoxLayout()
-
-        btn_abrir = QPushButton("Abrir")
-        btn_abrir.setStyleSheet("background: #252525; color: white; border: 1px solid #444; padding: 10px;")
-        btn_abrir.clicked.connect(self.abrir_item)
-
-        btn_eliminar = QPushButton("Eliminar")
-        btn_eliminar.setStyleSheet("background: #252525; color: white; border: 1px solid #444; padding: 10px;")
-        btn_eliminar.clicked.connect(self.eliminar_item)
-
-        actions_layout.addWidget(btn_abrir)
-        actions_layout.addWidget(btn_eliminar)
+        self.btn_abrir = QPushButton("Abrir")
+        self.btn_abrir.clicked.connect(self.abrir_item)
+        self.btn_eliminar = QPushButton("Eliminar")
+        self.btn_eliminar.clicked.connect(self.eliminar_item)
+        self.btn_exportar = QPushButton("Exportar")
+        self.btn_exportar.clicked.connect(self.exportar_archivo)
+        actions_layout.addWidget(self.btn_abrir)
+        actions_layout.addWidget(self.btn_eliminar)
+        actions_layout.addWidget(self.btn_exportar)
         sidebar_layout.addLayout(actions_layout)
 
         # ---------------- PANEL DERECHO ----------------
@@ -113,32 +93,39 @@ class Script(QMainWindow):
         tabs_layout.addStretch()
         main_content.addLayout(tabs_layout)
 
-        # Header
+        # ---------------- Header con icono independiente ----------------
         header_layout = QHBoxLayout()
+        title_layout = QHBoxLayout()
 
-        # 🔥 TÍTULO CON SIGNO DE INTERROGACIÓN
-        title = QLabel("Distribución por región   ❓")
-        title.setStyleSheet("font-size: 22px; font-weight: bold; color: white; margin-top: 20px;")
-
-        # Tooltip (ayuda)
-        title.setToolTip(
-            "INSTRUCCIONES:\n"
-            "• Selecciona un archivo del panel izquierdo\n"
-            "• Usa 'Abrir' para cargarlo\n"
-            "• Visualiza el resultado abajo\n"
-            "• Usa 'Exportar' para guardar"
-        )
-
-        btn_exportar = QPushButton("Exportar")
-        btn_exportar.setStyleSheet("""
-            background-color: white; color: black; font-weight: bold;
-            padding: 8px 25px; border-radius: 8px; margin-top: 20px;
+        title = QLabel("Distribución por región")
+        title.setStyleSheet("""
+            font-size: 22px;
+            font-weight: bold;
+            color: white;
         """)
-        btn_exportar.clicked.connect(self.exportar_archivo)
 
-        header_layout.addWidget(title)
+        help_icon = QLabel("❔")
+        help_icon.setCursor(Qt.CursorShape.PointingHandCursor)
+        help_icon.setToolTip(
+            "📌 INSTRUCCIONES:\n"
+            "• Selecciona un archivo del panel izquierdo\n"
+            "• Presiona 'Abrir' para cargarlo\n"
+            "• Visualiza el resultado en el cuadro de resultados\n"
+            "• Presiona 'Exportar' para guardar el archivo CSV"
+        )
+        help_icon.setStyleSheet("""
+            font-size: 15px;
+            color: #FFD700;
+            padding-left: 10px;
+        """)
+
+        title_layout.addWidget(title)
+        title_layout.addWidget(help_icon)
+        title_layout.addStretch()
+
+        header_layout.addLayout(title_layout)
         header_layout.addStretch()
-        header_layout.addWidget(btn_exportar)
+        header_layout.addWidget(self.btn_exportar)
 
         main_content.addLayout(header_layout)
 
@@ -156,13 +143,15 @@ class Script(QMainWindow):
         """)
         main_content.addWidget(consulta_box)
 
-        # Resultado
+        # Resultado (graph_frame)
         main_content.addWidget(QLabel("\nResultado"))
         self.graph_frame = QFrame()
         self.graph_frame.setStyleSheet("""
             background-color: #181818; border: 1px solid #2A2A2A; border-radius: 12px;
         """)
         self.graph_frame.setMinimumHeight(300)
+        self.graph_layout = QVBoxLayout()
+        self.graph_frame.setLayout(self.graph_layout)
         main_content.addWidget(self.graph_frame)
 
         # Footer
@@ -171,60 +160,69 @@ class Script(QMainWindow):
         footer.setStyleSheet("color: #555; font-size: 11px;")
         main_content.addWidget(footer)
 
-        # Layout final
         main_layout.addWidget(sidebar_widget)
         main_layout.addLayout(main_content)
 
     # ---------------- FUNCIONES ----------------
-
     def abrir_item(self):
         item = self.tree.currentItem()
-
         if not item:
             QMessageBox.warning(self, "Aviso", "Selecciona un elemento primero")
             return
-
-        texto = item.text(0)
-
-        if "📁" in texto:
-            QMessageBox.information(self, "Info", "Selecciona un archivo, no una carpeta")
-            return
-
-        QMessageBox.information(self, "Abrir", f"Abriste: {texto}")
+        ok, df = crud.abrir_item_logica(item.text(0))
+        if ok:
+            self.current_data = df
+            self.dibujar_grafico(df)
+        else:
+            QMessageBox.warning(self, "Error", df)
 
     def eliminar_item(self):
         item = self.tree.currentItem()
-
         if not item:
             QMessageBox.warning(self, "Aviso", "Selecciona un elemento para eliminar")
             return
-
-        confirm = QMessageBox.question(
-            self,
-            "Confirmar",
-            f"¿Eliminar '{item.text(0)}'?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-        )
-
-        if confirm == QMessageBox.StandardButton.Yes:
-            parent = item.parent()
-
-            if parent:
-                parent.removeChild(item)
-            else:
-                index = self.tree.indexOfTopLevelItem(item)
-                self.tree.takeTopLevelItem(index)
+        ok, mensaje = crud.eliminar_item_logica(self.tree, item)
+        if ok:
+            QMessageBox.information(self, "Éxito", mensaje)
+            self.current_data = pd.DataFrame()
+            self.limpiar_graph_frame()
+        else:
+            QMessageBox.warning(self, "Error", mensaje)
 
     def exportar_archivo(self):
-        archivo, _ = QFileDialog.getSaveFileName(
-            self,
-            "Guardar archivo",
-            "",
-            "CSV (*.csv);;Todos los archivos (*)"
-        )
-
+        if self.current_data.empty:
+            QMessageBox.warning(self, "Aviso", "No hay datos para exportar")
+            return
+        archivo, _ = QFileDialog.getSaveFileName(self, "Guardar archivo", "", "CSV (*.csv);;Todos los archivos (*)")
         if archivo:
-            print("Archivo guardado en:", archivo)
+            self.current_data.to_csv(archivo, index=False)
+            QMessageBox.information(self, "Exportar", f"Archivo guardado en {archivo}")
+
+    # ---------------- FUNCIONES DE GRAFICO ----------------
+    def limpiar_graph_frame(self):
+        for i in reversed(range(self.graph_layout.count())):
+            widget = self.graph_layout.itemAt(i).widget()
+            if widget:
+                widget.setParent(None)
+
+    def dibujar_grafico(self, df):
+        self.limpiar_graph_frame()
+
+        fig = Figure(figsize=(5,3))
+        canvas = FigureCanvas(fig)
+        ax = fig.add_subplot(111)
+
+        if 'Region' in df.columns and 'Ventas' in df.columns:
+            ax.bar(df['Region'], df['Ventas'], color='skyblue')
+            ax.set_title("Distribución de ventas por región")
+        elif 'Mes' in df.columns and 'Ventas' in df.columns:
+            ax.plot(df['Mes'], df['Ventas'], marker='o', color='orange')
+            ax.set_title("Tendencia mensual de ventas")
+        else:
+            ax.text(0.5, 0.5, 'No hay gráfico disponible', ha='center', va='center', fontsize=12)
+
+        self.graph_layout.addWidget(canvas)
+        canvas.draw()
 
 
 if __name__ == "__main__":
