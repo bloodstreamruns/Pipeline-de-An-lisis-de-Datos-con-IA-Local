@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import QMessageBox 
-import administrador_autenticacion # Módulo encargado de manejar la lectura y escritura de usuarios en el archivo JSON. Proporciona funciones para obtener la lista de usuarios, guardar un nuevo usuario y eliminar un usuario existente.
+from lógica import administrador_autenticacion # Módulo encargado de manejar la lectura y escritura de usuarios en el archivo JSON. Proporciona funciones para obtener la lista de usuarios, guardar un nuevo usuario y eliminar un usuario existente.
 
 
 class AdminLogic:
@@ -45,3 +45,35 @@ class AdminLogic:
         if confirmar == QMessageBox.StandardButton.Yes:
             administrador_autenticacion.eliminar_usuario(username)
             self.interface.left_panel.refrescar_lista()
+    
+        # Cambia la contraseña de un usuario existente.
+    # Validaciones:
+    #   1. Ningún campo puede estar vacío.
+    #   2. La nueva contraseña y la confirmación deben coincidir.
+    #   3. El usuario indicado debe existir en el JSON.
+    # Si todo pasa, delega la escritura a administrador_autenticacion y limpia el formulario.
+    def cambiar_contrasena(self):
+        u  = self.interface.right_panel.cp_user_input.text().strip()
+        p1 = self.interface.right_panel.cp_new_input.text().strip()
+        p2 = self.interface.right_panel.cp_confirm_input.text().strip()
+ 
+        if not u or not p1 or not p2:
+            QMessageBox.warning(self.interface, "Error", "Debes rellenar todos los campos.")
+            return
+ 
+        if p1 != p2:
+            QMessageBox.critical(self.interface, "Error", "Las contraseñas no coinciden.")
+            return
+ 
+        usuarios = administrador_autenticacion.obtener_lista_usuarios()
+        if not any(user["username"].lower() == u.lower() for user in usuarios):
+            QMessageBox.critical(self.interface, "Error", f"El usuario '{u}' no existe.")
+            return
+ 
+        administrador_autenticacion.cambiar_contrasena(u, p1)
+        QMessageBox.information(self.interface, "Éxito", f"Contraseña de '{u}' actualizada correctamente.")
+ 
+        self.interface.right_panel.cp_user_input.clear()
+        self.interface.right_panel.cp_new_input.clear()
+        self.interface.right_panel.cp_confirm_input.clear()
+ 
