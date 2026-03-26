@@ -1,6 +1,8 @@
 import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import pandas as pd
-import crud
+import lógica.crud
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLineEdit, QPushButton, QLabel, QFrame, QTreeWidget,
@@ -169,7 +171,7 @@ class Script(QMainWindow):
         if not item:
             QMessageBox.warning(self, "Aviso", "Selecciona un elemento primero")
             return
-        ok, df = crud.abrir_item_logica(item.text(0))
+        ok, df = lógica.crud.abrir_item_logica(item.text(0))
         if ok:
             self.current_data = df
             self.dibujar_grafico(df)
@@ -181,7 +183,7 @@ class Script(QMainWindow):
         if not item:
             QMessageBox.warning(self, "Aviso", "Selecciona un elemento para eliminar")
             return
-        ok, mensaje = crud.eliminar_item_logica(self.tree, item)
+        ok, mensaje = lógica.crud.eliminar_item_logica(self.tree, item)
         if ok:
             QMessageBox.information(self, "Éxito", mensaje)
             self.current_data = pd.DataFrame()
