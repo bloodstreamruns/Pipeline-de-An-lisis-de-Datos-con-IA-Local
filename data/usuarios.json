@@ -19,12 +19,6 @@
             "initials": "NQ"
         },
         {
-            "username": "dsanchez",
-            "password": "1234567",
-            "role": "usuario",
-            "initials": "DS"
-        },
-        {
             "username": "daniel",
             "password": "123",
             "role": "usuario",
