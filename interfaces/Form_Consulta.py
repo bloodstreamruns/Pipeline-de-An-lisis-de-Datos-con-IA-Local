@@ -1,14 +1,21 @@
 import sys
-from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
-                             QHBoxLayout, QPushButton, QLabel, QTextEdit, 
-                             QStackedWidget, QFrame)
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
+                             QHBoxLayout, QPushButton, QLabel, QTextEdit,
+                             QStackedWidget, QFrame, QFileDialog, QMessageBox)
 from PyQt6.QtCore import Qt
+from interfaces.Script import Script
+from interfaces.Form_admin_de_usuarios import AdminScreen
 
 class Consulta(QMainWindow):
-    def __init__(self):
+    def __init__(self, role: str = "usuario"):
         super().__init__()
-        self.setWindowTitle("Consulta") 
-        self.resize(800, 500) 
+        self.role = role
+        self.csv_ruta   = None
+        self.csv_nombre = None
+        self.setWindowTitle("Consulta")
+        self.resize(800, 500)
         self.setStyleSheet("background-color: #1e1e1e; color: white; font-family: Arial;")
 
         # --- CONTENEDOR PRINCIPAL ---
@@ -26,11 +33,11 @@ class Consulta(QMainWindow):
         self.main_layout.addWidget(self.central_widget)
 
         # Inicializamos las pantallas (El orden aquí define el índice)
-        self.init_pantalla_1()      # Índice 0: Subir CSV
-        self.init_pantalla_2()      # Índice 1: Consulta activa
-        self.init_pantalla_3()      # Índice 2: Resultado
-        self.init_pantalla_scripts() # Índice 3: Scripts (Blanco)
-        self.init_pantalla_admin()   # Índice 4: Admin
+        self.init_pantalla_1()       # Índice 0: Subir CSV
+        self.init_pantalla_2()       # Índice 1: Consulta activa
+        self.init_pantalla_3()       # Índice 2: Resultado
+        self.init_pantalla_scripts() # Índice 3: Scripts
+        self.init_pantalla_admin()   # Índice 4: Admin (solo admin)
 
         # Iniciamos en la pantalla 0
         self.switch_tab(0)
@@ -42,30 +49,31 @@ class Consulta(QMainWindow):
         nav_layout.setContentsMargins(30, 15, 30, 5)
 
         self.btn_nav_consulta = QPushButton("Consulta")
-        self.btn_nav_scripts = QPushButton("Scripts")
-        self.btn_nav_admin = QPushButton("Administración")
+        self.btn_nav_scripts  = QPushButton("Scripts")
+        self.btn_nav_admin    = QPushButton("Administración")
 
         self.menu_buttons = [self.btn_nav_consulta, self.btn_nav_scripts, self.btn_nav_admin]
-        
-        # Conexiones explícitas para evitar errores de lambda
+
         self.btn_nav_consulta.clicked.connect(lambda: self.switch_tab(0))
         self.btn_nav_scripts.clicked.connect(lambda: self.switch_tab(3))
         self.btn_nav_admin.clicked.connect(lambda: self.switch_tab(4))
 
-        for btn in self.menu_buttons:
-            nav_layout.addWidget(btn)
-        
+        nav_layout.addWidget(self.btn_nav_consulta)
+        nav_layout.addWidget(self.btn_nav_scripts)
+
+        # El botón de Administración solo se agrega si el rol es admin
+        if self.role == "admin":
+            nav_layout.addWidget(self.btn_nav_admin)
+
         nav_layout.addStretch()
         self.main_layout.addWidget(nav_frame)
 
     def switch_tab(self, index):
-        """Cambia de pantalla y actualiza el estilo visual"""
+        """Cambia de pantalla y actualiza el estilo visual."""
         self.central_widget.setCurrentIndex(index)
-        
+
         for i, btn in enumerate(self.menu_buttons):
-            # Lógica de iluminación de pestañas
             is_active = (index < 3 and i == 0) or (index == 3 and i == 1) or (index == 4 and i == 2)
-            
             btn.setStyleSheet(f"""
                 QPushButton {{
                     background: transparent;
@@ -79,32 +87,73 @@ class Consulta(QMainWindow):
                 }}
             """)
 
-    # --- TUS PANTALLAS (Mantenidas íntegras) ---
+    def set_nav_callbacks(self, consulta_fn, scripts_fn, admin_fn):
+        """Conecta los botones de la topbar a las funciones de navegación
+        provistas por app.py."""
+        self.btn_nav_consulta.clicked.connect(consulta_fn)
+        self.btn_nav_scripts.clicked.connect(scripts_fn)
+        self.btn_nav_admin.clicked.connect(admin_fn)
+
+    # --- LÓGICA DE CSV ---
+    def subir_csv(self):
+        """Abre el explorador de archivos filtrado a .csv y navega a pantalla 1 si tiene éxito."""
+        ruta, _ = QFileDialog.getOpenFileName(
+            self,
+            "Seleccionar archivo CSV",
+            "",
+            "Archivos CSV (*.csv)"
+        )
+
+        if not ruta:
+            return  # Usuario canceló — no hacer nada
+
+        # Validación defensiva por si el SO ignora el filtro del diálogo
+        if not ruta.lower().endswith(".csv"):
+            QMessageBox.warning(
+                self,
+                "Archivo inválido",
+                "Solo se permiten archivos .csv\n\nPor favor seleccione un archivo con extensión .csv."
+            )
+            return
+
+        # Guardar ruta y nombre para uso posterior (pandas, etc.)
+        self.csv_ruta   = ruta
+        self.csv_nombre = os.path.basename(ruta)
+
+        # Actualizar el label de estado en pantalla 2 con el nombre real
+        self.label_csv_conectado.setText(f"✅ {self.csv_nombre} conectado")
+
+        # Navegar a pantalla 2 (consulta activa)
+        self.central_widget.setCurrentIndex(1)
+        self.switch_tab(1)  # índices 0-2 activan "Consulta" en el menú
+
+    # --- PANTALLAS ---
     def init_pantalla_1(self):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(30, 30, 30, 30)
         layout.setSpacing(15)
-        
+
         banner = QLabel("⚠️ Suba un dataset antes de realizar una consulta.")
         banner.setStyleSheet("background-color: #4a3a1e; color: #ffcc00; padding: 12px; border-radius: 8px;")
-        
+
         btn_subir = QPushButton("↑ Subir CSV")
         btn_subir.setFixedHeight(40)
         btn_subir.setStyleSheet("background-color: #333; border: 1px solid #555; border-radius: 5px;")
-        btn_subir.clicked.connect(lambda: self.central_widget.setCurrentIndex(1))
+        # Conectado a subir_csv en lugar del lambda anterior
+        btn_subir.clicked.connect(self.subir_csv)
 
         input_chat = QTextEdit()
         input_chat.setPlaceholderText("Ej: Muestre la distribución de ventas por región...")
         input_chat.setReadOnly(True)
-        input_chat.setMaximumHeight(120) 
+        input_chat.setMaximumHeight(120)
         input_chat.setStyleSheet("background-color: #252525; border-radius: 8px; padding: 10px;")
-        
+
         layout.addWidget(banner)
         layout.addWidget(QLabel("<b>Dataset</b>"))
         layout.addWidget(btn_subir)
         layout.addWidget(input_chat)
-        layout.addStretch() 
+        layout.addStretch()
         self.central_widget.addWidget(page)
 
     def init_pantalla_2(self):
@@ -113,12 +162,14 @@ class Consulta(QMainWindow):
         layout.setContentsMargins(30, 30, 30, 30)
         layout.setSpacing(15)
 
-        status = QLabel("✅ ventas_2024.csv conectado")
-        status.setStyleSheet("color: #76b900; font-weight: bold; font-size: 15px;")
+        # Atributo de instancia para actualizarlo desde subir_csv()
+        self.label_csv_conectado = QLabel("✅ —")
+        self.label_csv_conectado.setStyleSheet("color: #76b900; font-weight: bold; font-size: 15px;")
 
         btn_cambiar = QPushButton("↑ Cambiar dataset")
         btn_cambiar.setFixedHeight(35)
-        btn_cambiar.clicked.connect(lambda: self.central_widget.setCurrentIndex(0))
+        # Vuelve a pantalla 0 para que el usuario pueda elegir otro CSV
+        btn_cambiar.clicked.connect(lambda: self.switch_tab(0))
 
         self.input_real = QTextEdit()
         self.input_real.setPlaceholderText("¿Qué desea consultar?")
@@ -130,7 +181,7 @@ class Consulta(QMainWindow):
         btn_ejecutar.setStyleSheet("background-color: #0078d4; font-weight: bold; border-radius: 5px;")
         btn_ejecutar.clicked.connect(lambda: self.central_widget.setCurrentIndex(2))
 
-        layout.addWidget(status)
+        layout.addWidget(self.label_csv_conectado)
         layout.addWidget(btn_cambiar)
         layout.addWidget(self.input_real)
         layout.addWidget(btn_ejecutar)
@@ -147,11 +198,11 @@ class Consulta(QMainWindow):
         header.setStyleSheet("color: #76b900; font-weight: bold; background-color: #1a2e1a; padding: 8px; border-radius: 5px;")
 
         grafico = QFrame()
-        grafico.setMinimumHeight(200) 
+        grafico.setMinimumHeight(200)
         grafico.setStyleSheet("background-color: #2a2a2a; border: 1px dashed #555; border-radius: 12px;")
 
         botones = QHBoxLayout()
-        btn_guardar = QPushButton("Guardar")
+        btn_guardar   = QPushButton("Guardar")
         btn_descartar = QPushButton("Descartar")
         btn_descartar.clicked.connect(lambda: self.central_widget.setCurrentIndex(1))
         botones.addWidget(btn_guardar)
@@ -165,16 +216,22 @@ class Consulta(QMainWindow):
         self.central_widget.addWidget(page)
 
     def init_pantalla_scripts(self):
-        page = QWidget() # Totalmente en blanco
+        # Script es QMainWindow; se extrae su centralWidget para incrustarlo en el stack.
+        # La instancia se guarda en self para evitar que el GC la destruya.
+        self._script_window = Script()
+        page = self._script_window.centralWidget()
         self.central_widget.addWidget(page)
 
     def init_pantalla_admin(self):
-        page = QWidget()
-        layout = QVBoxLayout(page)
-        layout.setContentsMargins(30, 30, 30, 30)
-        layout.addWidget(QLabel("<h2>Panel de Administración</h2>"))
-        layout.addStretch()
-        self.central_widget.addWidget(page)
+        if self.role == "admin":
+            # embedded=True suprime la TopBar interna; la navegación la maneja Consulta.
+            # Se guarda en self para evitar que el GC la destruya.
+            self._admin_screen = AdminScreen(embedded=True)
+            self.central_widget.addWidget(self._admin_screen)
+        else:
+            # Página vacía como placeholder para mantener el índice 4 consistente
+            self.central_widget.addWidget(QWidget())
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
