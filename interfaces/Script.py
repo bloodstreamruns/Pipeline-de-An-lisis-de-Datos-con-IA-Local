@@ -103,8 +103,8 @@ class Script(QMainWindow):
         Parameters
         ----------
         dataframe : pd.DataFrame, optional
-            DataFrame inyectado desde la pantalla anterior.
-            Si se omite se usa uno de prueba al correr directamente.
+            DataFrame inyectado desde la pantalla de consulta.
+            Si se omite se usa un DataFrame vacío.
         """
         super().__init__()
         self.setWindowTitle("Scripts")
@@ -181,24 +181,6 @@ class Script(QMainWindow):
         p = QVBoxLayout(panel)
         p.setContentsMargins(32, 22, 32, 22)
         p.setSpacing(10)
-
-        # Tabs decorativos
-        tabs_row = QHBoxLayout()
-        for texto in ["Consulta", "Scripts", "Administración"]:
-            activo = texto == "Scripts"
-            btn = QPushButton(texto)
-            btn.setStyleSheet(f"""
-                QPushButton {{
-                    background: transparent; font-weight: bold; font-size: 15px;
-                    color: {"#FFF" if activo else "#555"};
-                    border-bottom: {"2px solid white" if activo else "none"};
-                    border-left: none; border-right: none; border-top: none;
-                    padding-bottom: 5px; margin-right: 20px;
-                }}
-            """)
-            tabs_row.addWidget(btn)
-        tabs_row.addStretch()
-        p.addLayout(tabs_row)
 
         # Título + ayuda
         title_row = QHBoxLayout()
@@ -311,6 +293,17 @@ class Script(QMainWindow):
             QPushButton:hover {{ background-color: #3A3A3A; }}
         """
 
+    def set_dataframe(self, df: pd.DataFrame):
+        """
+        Actualiza el DataFrame activo desde la pantalla de consulta.
+        Se llama cada vez que el usuario carga un nuevo CSV, para que
+        los scripts siempre operen sobre los datos más recientes.
+        También actualiza el estado del botón Ejecutar si hay un script seleccionado.
+        """
+        self.current_data = df
+        if self._script_sel:
+            self.btn_ejecutar.setEnabled(not df.empty)
+
     # ── Árbol ─────────────────────────────────────────────────────────────────
 
     def _refrescar_arbol(self, expandir: str = ""):
@@ -329,8 +322,8 @@ class Script(QMainWindow):
                     0, Qt.ItemDataRole.UserRole,
                     {"tipo": "script", "carpeta": carpeta, "nombre": nombre}
                 )
-            # Expandir si corresponde
-            item_carp.setExpanded(carpeta == expandir or not expandir)
+            # Expandir solo la carpeta indicada; si no hay ninguna, colapsar todo
+            item_carp.setExpanded(bool(expandir) and carpeta == expandir)
         self.tree.blockSignals(False)
 
     def _filtrar_arbol(self, texto: str):
@@ -590,6 +583,7 @@ class Script(QMainWindow):
     def _mostrar_placeholder(self, texto: str, error: bool = False):
         self._limpiar_graph_frame()
         lbl = QLabel(texto)
+        lbl.setWordWrap(True)
         lbl.setStyleSheet(
             f"color: {'#FF6B6B' if error else '#333'};"
             "font-size: 13px; font-style: italic;"
