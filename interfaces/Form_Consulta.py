@@ -7,6 +7,11 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
 from PyQt6.QtCore import Qt
 from interfaces.Script import Script
 from interfaces.Form_admin_de_usuarios import AdminScreen
+from core.prompt_builder import construir_prompt
+from core.ollama_client import OllamaWorker
+from lógica.logica_scripts import guardar_script
+
+import pandas as pd
 
 class Consulta(QMainWindow):
     def __init__(self, role: str = "usuario"):
@@ -180,6 +185,7 @@ class Consulta(QMainWindow):
         btn_ejecutar.setFixedHeight(40)
         btn_ejecutar.setStyleSheet("background-color: #0078d4; font-weight: bold; border-radius: 5px;")
         btn_ejecutar.clicked.connect(lambda: self.central_widget.setCurrentIndex(2))
+        btn_ejecutar.clicked.connect(self.ejecutar_consulta)
 
         layout.addWidget(self.label_csv_conectado)
         layout.addWidget(btn_cambiar)
@@ -232,6 +238,52 @@ class Consulta(QMainWindow):
             # Página vacía como placeholder para mantener el índice 4 consistente
             self.central_widget.addWidget(QWidget())
 
+    def ejecutar_consulta(self):
+        # 1. Leer el CSV
+        if not self.csv_ruta:
+            QMessageBox.warning(self, "Sin archivo", "Primero debes subir un archivo CSV.")
+            return
+        try:
+            df = pd.read_csv(self.csv_ruta)
+        except Exception as e:
+            QMessageBox.warning(self, "Error al leer CSV", str(e))
+            return
+
+        # 2. Construir el prompt
+        consulta = self.input_real.toPlainText().strip()
+        if not consulta:
+            QMessageBox.warning(self, "Consulta vacía", "Por favor, escribe una consulta.")
+            return
+        prompt = construir_prompt(df, consulta)
+
+        # 3. Mostrar indicador de carga
+        self.loading_label = QLabel("Procesando consulta con IA, por favor espera...")
+        widget = self.central_widget.widget(1)
+        if widget is not None:
+            page_layout = widget.layout()
+            if page_layout is not None:
+                page_layout.addWidget(self.loading_label)
+
+        # 4. Instanciar y lanzar el worker
+        self.worker = OllamaWorker(prompt)
+        self.worker.exito.connect(lambda codigo: self._on_ollama_exito(codigo, df, consulta))
+        self.worker.error.connect(self._on_ollama_error)
+        self.worker.start()
+
+    def _on_ollama_exito(self, codigo, df, consulta):
+        # Quitar indicador de carga
+        self.loading_label.deleteLater()
+        # Guardar el script (puedes pedir carpeta/nombre o usar valores por defecto)
+        exito, msg = guardar_script("consultas", f"consulta_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}", codigo)
+        if not exito:
+            QMessageBox.warning(self, "Error al guardar script", msg)
+        # Navegar a pantalla 3
+        self.central_widget.setCurrentIndex(2)
+        self.switch_tab(2)
+
+    def _on_ollama_error(self, error_msg):
+        self.loading_label.deleteLater()
+        QMessageBox.warning(self, "Error IA", error_msg)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
