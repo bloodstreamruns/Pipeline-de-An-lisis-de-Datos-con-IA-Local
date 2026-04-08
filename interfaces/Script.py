@@ -2,6 +2,7 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from typing import Optional
 import pandas as pd
 from lógica.logica_scripts import (
     obtener_arbol,
@@ -98,7 +99,7 @@ class DialogoResultado(QDialog):
 # ─────────────────────────────────────────────────────────────────────────────
 
 class Script(QMainWindow):
-    def __init__(self, dataframe: pd.DataFrame = None):
+    def __init__(self, dataframe: Optional[pd.DataFrame] = None):
         """
         Parameters
         ----------
@@ -302,7 +303,7 @@ class Script(QMainWindow):
         """
         self.current_data = df
         if self._script_sel:
-            self.btn_ejecutar.setEnabled(not df.empty)
+            self.btn_ejecutar.setEnabled(True)
 
     # ── Árbol ─────────────────────────────────────────────────────────────────
 
@@ -330,9 +331,13 @@ class Script(QMainWindow):
         texto = texto.lower().strip()
         for i in range(self.tree.topLevelItemCount()):
             carp = self.tree.topLevelItem(i)
+            if not carp:
+                continue
             hay_visible = False
             for j in range(carp.childCount()):
                 sc = carp.child(j)
+                if not sc:
+                    continue
                 data = sc.data(0, Qt.ItemDataRole.UserRole) or {}
                 coincide = texto in data.get("nombre", "").lower()
                 sc.setHidden(not coincide)
@@ -362,7 +367,7 @@ class Script(QMainWindow):
             color: #555; font-size: 13px; font-style: italic;
         """)
         self._mostrar_placeholder("Presiona  ▶ Ejecutar  para ver el resultado")
-        self.btn_ejecutar.setEnabled(not self.current_data.empty)
+        self.btn_ejecutar.setEnabled(True)
 
     # ── Menú contextual ───────────────────────────────────────────────────────
 
@@ -387,7 +392,8 @@ class Script(QMainWindow):
         if data["tipo"] == "subcarpeta":
             act_rename = menu.addAction("✏  Renombrar subcarpeta")
             act_delete = menu.addAction("🗑  Eliminar subcarpeta")
-            accion = menu.exec(self.tree.viewport().mapToGlobal(pos))
+            viewport = self.tree.viewport()
+            accion = menu.exec(viewport.mapToGlobal(pos) if viewport else pos)
             if accion == act_rename:
                 self._renombrar_subcarpeta(data["carpeta"])
             elif accion == act_delete:
@@ -398,7 +404,8 @@ class Script(QMainWindow):
             act_mover  = menu.addAction("📁  Mover a otra subcarpeta")
             menu.addSeparator()
             act_delete = menu.addAction("🗑  Eliminar script")
-            accion = menu.exec(self.tree.viewport().mapToGlobal(pos))
+            viewport = self.tree.viewport()
+            accion = menu.exec(viewport.mapToGlobal(pos) if viewport else pos)
             if accion == act_rename:
                 self._renombrar_script(data["carpeta"], data["nombre"])
             elif accion == act_mover:
@@ -545,14 +552,6 @@ class Script(QMainWindow):
     def _ejecutar_script(self):
         if not self._carpeta_sel or not self._script_sel:
             return
-        if self.current_data.empty:
-            QMessageBox.warning(
-                self, "Sin datos",
-                "No hay un DataFrame cargado.\n"
-                "Regresa a la pantalla anterior para cargar un archivo."
-            )
-            return
-
         self._mostrar_placeholder("Ejecutando…")
         QApplication.processEvents()
 
@@ -576,9 +575,11 @@ class Script(QMainWindow):
 
     def _limpiar_graph_frame(self):
         for i in reversed(range(self.graph_layout.count())):
-            w = self.graph_layout.itemAt(i).widget()
-            if w:
-                w.setParent(None)
+            item = self.graph_layout.itemAt(i)
+            if item is not None:
+                w = item.widget()
+                if w:
+                    w.setParent(None)
 
     def _mostrar_placeholder(self, texto: str, error: bool = False):
         self._limpiar_graph_frame()
