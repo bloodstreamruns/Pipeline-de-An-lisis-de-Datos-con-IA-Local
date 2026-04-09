@@ -51,7 +51,9 @@ def construir_prompt(df: pd.DataFrame, consulta: str) -> str:
         instruccion_salida = (
             "La consulta requiere una visualización. "
             "Genera exactamente UNA figura usando matplotlib o seaborn. "
-            "Termina el script con plt.tight_layout(). No llames a plt.show(). "
+            "Ejemplo con matplotlib: fig, ax = plt.subplots(); ax.bar(x, y); plt.tight_layout(). "
+            "Ejemplo con seaborn: sns.barplot(data=df, x='col_x', y='col_y'); plt.tight_layout(). "
+            "Termina SIEMPRE con plt.tight_layout(). No llames a plt.show(). "
             "No asignes nada a una variable llamada `resultado`."
         )
     else:
@@ -86,7 +88,10 @@ INSTRUCCIONES ESTRICTAS
    El DataFrame ya cargado se llama `df`. Úsalas sin importarlas de nuevo.
    No leas archivos. No uses input().
 3. {instruccion_salida}
-4. El código debe ser correcto y ejecutarse sin errores dado el dataset descrito.
+4. Para agregaciones múltiples sobre una columna, usa ÚNICAMENTE la sintaxis de lista:
+   df.groupby('col_grupo')['col_valor'].agg(['mean', 'min', 'max'])
+   NUNCA uses named aggregation con tuplas dentro de agg (e.g. agg(nombre=('col', 'func'))).
+5. El código debe ser correcto y ejecutarse sin errores dado el dataset descrito.
 
 CÓDIGO PYTHON:
 """

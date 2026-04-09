@@ -2,6 +2,7 @@ import os
 import shutil
 import pandas as pd
 import matplotlib.pyplot as plt
+import seaborn as sns
 from matplotlib.figure import Figure
 
 # Raíz del proyecto: dos niveles arriba desde lógica/
@@ -205,6 +206,7 @@ def ejecutar_script(carpeta: str, nombre: str, df: pd.DataFrame) -> tuple[bool, 
         "df":  df,
         "pd":  pd,
         "plt": plt,
+        "sns": sns,
     }
 
     # Cerramos cualquier figura previa para que gcf() capture solo la nueva
