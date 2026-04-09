@@ -21,9 +21,46 @@ def construir_prompt(df: pd.DataFrame, consulta: str) -> str:
     str : Prompt listo para enviarse al modelo.
     """
 
-    columnas  = ", ".join(df.columns.tolist())
-    n_filas   = len(df)
-    resumen   = df.describe(include="all").to_string()
+    columnas = ", ".join(df.columns.tolist())
+    n_filas  = len(df)
+
+    # Limitar el resumen estadístico para no saturar el contexto del modelo.
+    # describe(include="all") en datasets anchos puede generar cientos de líneas
+    # y consumir la mayor parte del contexto disponible de Phi-4 (~16K tokens).
+    resumen_df = df.describe(include="all")
+    max_cols_resumen = 15
+    if len(resumen_df.columns) > max_cols_resumen:
+        resumen = (
+            resumen_df.iloc[:, :max_cols_resumen].to_string()
+            + f"\n... (y {len(resumen_df.columns) - max_cols_resumen} columnas más, omitidas para abreviar)"
+        )
+    else:
+        resumen = resumen_df.to_string()
+
+    # Determinar si la consulta probablemente requiere visualización para
+    # darle al modelo una instrucción de salida única y sin ambigüedad,
+    # evitando que mezcle la rama de `resultado` con la de `plt`.
+    palabras_viz = {
+        "gráfico", "grafico", "grafica", "gráfica", "chart", "plot",
+        "visualiz", "histograma", "barras", "línea", "linea",
+        "dispersión", "dispersion", "pie", "mapa", "heatmap", "diagrama",
+    }
+    requiere_viz = any(p in consulta.lower() for p in palabras_viz)
+
+    if requiere_viz:
+        instruccion_salida = (
+            "La consulta requiere una visualización. "
+            "Genera exactamente UNA figura usando matplotlib o seaborn. "
+            "Termina el script con plt.tight_layout(). No llames a plt.show(). "
+            "No asignes nada a una variable llamada `resultado`."
+        )
+    else:
+        instruccion_salida = (
+            "La consulta NO requiere visualización. "
+            "Guarda el resultado final en una variable llamada `resultado` como string. "
+            "Ejemplo: resultado = str(df['col'].mean()). "
+            "No generes ninguna figura ni llames a plt ni a sns."
+        )
 
     prompt = f"""Eres un experto en análisis de datos con Python.
 Se te proporciona un DataFrame llamado `df` que ya está cargado en memoria.
@@ -44,18 +81,12 @@ INSTRUCCIONES ESTRICTAS
 =======================
 1. Responde ÚNICAMENTE con código Python ejecutable. No escribas texto explicativo,
    comentarios en prosa, ni bloques de markdown (no uses ```python ni ```).
-2. Usa SOLO las siguientes librerías, que ya están disponibles en el entorno:
-   - pandas  (alias: pd)
-   - matplotlib.pyplot  (alias: plt)
-   - seaborn  (alias: sns)
-   - El DataFrame ya cargado se llama `df`.
-3. No importes ninguna librería. No leas archivos. No uses `input()`.
-4. Si la consulta requiere una visualización, genera exactamente UNA figura
-   con plt y llama a plt.tight_layout() al final. No llames a plt.show().
-5. Si la consulta no requiere visualización (por ejemplo, pide un cálculo o
-   un resumen), guarda el resultado final en una variable llamada `resultado`
-   como string. Ejemplo: resultado = str(df['col'].mean())
-6. El código debe ser correcto y ejecutarse sin errores dado el dataset descrito.
+2. Las siguientes librerías ya están importadas en el entorno y disponibles directamente:
+   pandas as pd, matplotlib.pyplot as plt, seaborn as sns.
+   El DataFrame ya cargado se llama `df`. Úsalas sin importarlas de nuevo.
+   No leas archivos. No uses input().
+3. {instruccion_salida}
+4. El código debe ser correcto y ejecutarse sin errores dado el dataset descrito.
 
 CÓDIGO PYTHON:
 """
