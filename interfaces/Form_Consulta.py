@@ -128,6 +128,17 @@ class Consulta(QMainWindow):
         self.csv_ruta   = ruta
         self.csv_nombre = os.path.basename(ruta)
 
+        # Leer el CSV y pasárselo a Script para que los scripts se ejecuten
+        # con el DataFrame correcto. utf-8-sig elimina el BOM si existe;
+        # str.strip() elimina espacios invisibles en los nombres de columnas.
+        try:
+            df_cargado = pd.read_csv(self.csv_ruta, encoding="utf-8-sig")
+            df_cargado.columns = df_cargado.columns.str.strip()
+            self._script_window.set_dataframe(df_cargado)
+        except Exception as e:
+            QMessageBox.warning(self, "Error al leer CSV", str(e))
+            return
+
         # Actualizar el label de estado en pantalla 2 con el nombre real
         self.label_csv_conectado.setText(f"✅ {self.csv_nombre} conectado")
 
@@ -259,8 +270,7 @@ class Consulta(QMainWindow):
             QMessageBox.warning(self, "Sin archivo", "Primero debes subir un archivo CSV.")
             return
         try:
-            df = pd.read_csv(self.csv_ruta, encoding="utf-8-sig")
-            df.columns = df.columns.str.strip()
+            df = pd.read_csv(self.csv_ruta)
         except Exception as e:
             QMessageBox.warning(self, "Error al leer CSV", str(e))
             return
@@ -308,8 +318,9 @@ class Consulta(QMainWindow):
                 QMessageBox.warning(self, "Error al guardar script", f"No se pudo guardar el script: {msg}")
                 return
             
-            # Refrescar la lista de scripts para que aparezcan los nuevos
+            # Refrescar la lista de scripts y pasarle el DataFrame actualizado
             self._script_window._refrescar_arbol()
+            self._script_window.set_dataframe(df)
             
             # Actualizar el display con el código generado
             self.code_display.setPlainText(self.generated_code)
