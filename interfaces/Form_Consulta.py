@@ -259,7 +259,8 @@ class Consulta(QMainWindow):
             QMessageBox.warning(self, "Sin archivo", "Primero debes subir un archivo CSV.")
             return
         try:
-            df = pd.read_csv(self.csv_ruta)
+            df = pd.read_csv(self.csv_ruta, encoding="utf-8-sig")
+            df.columns = df.columns.str.strip()
         except Exception as e:
             QMessageBox.warning(self, "Error al leer CSV", str(e))
             return
