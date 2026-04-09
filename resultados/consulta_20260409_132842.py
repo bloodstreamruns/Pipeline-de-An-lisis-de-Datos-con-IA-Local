@@ -1,1 +1,1 @@
-"¿Cuáles son los 3 departamentos con mayor salario promedio, junto con su salario mínimo y máximo?"
+genera un gráfico de barras con el salario promedio por departamento
