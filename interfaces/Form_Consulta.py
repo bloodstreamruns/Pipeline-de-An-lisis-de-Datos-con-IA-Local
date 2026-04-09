@@ -12,6 +12,8 @@ from core.ollama_client import OllamaWorker
 from lógica.logica_scripts import guardar_script
 
 import pandas as pd
+import logging
+logging.basicConfig(level=logging.DEBUG, filename='debug.log', format='%(asctime)s - %(levelname)s - %(message)s')
 
 class Consulta(QMainWindow):
     def __init__(self, role: str = "usuario"):
@@ -19,6 +21,7 @@ class Consulta(QMainWindow):
         self.role = role
         self.csv_ruta   = None
         self.csv_nombre = None
+        self.generated_code = ""
         self.setWindowTitle("Consulta")
         self.resize(800, 500)
         self.setStyleSheet("background-color: #1e1e1e; color: white; font-family: Arial;")
@@ -184,7 +187,6 @@ class Consulta(QMainWindow):
         btn_ejecutar = QPushButton("Ejecutar Consulta")
         btn_ejecutar.setFixedHeight(40)
         btn_ejecutar.setStyleSheet("background-color: #0078d4; font-weight: bold; border-radius: 5px;")
-        btn_ejecutar.clicked.connect(lambda: self.central_widget.setCurrentIndex(2))
         btn_ejecutar.clicked.connect(self.ejecutar_consulta)
 
         layout.addWidget(self.label_csv_conectado)
@@ -203,18 +205,27 @@ class Consulta(QMainWindow):
         header = QLabel("🟢 Consulta procesada correctamente")
         header.setStyleSheet("color: #76b900; font-weight: bold; background-color: #1a2e1a; padding: 8px; border-radius: 5px;")
 
+        # Agregar display del código generado
+        self.code_display = QTextEdit()
+        self.code_display.setPlainText(self.generated_code)
+        self.code_display.setReadOnly(True)
+        self.code_display.setMaximumHeight(150)  # Limitar altura para que no ocupe todo
+
         grafico = QFrame()
         grafico.setMinimumHeight(200)
         grafico.setStyleSheet("background-color: #2a2a2a; border: 1px dashed #555; border-radius: 12px;")
 
         botones = QHBoxLayout()
-        btn_guardar   = QPushButton("Guardar")
+        btn_guardar   = QPushButton("Ver scripts")
         btn_descartar = QPushButton("Descartar")
+        btn_guardar.clicked.connect(self._ver_scripts)
         btn_descartar.clicked.connect(lambda: self.central_widget.setCurrentIndex(1))
         botones.addWidget(btn_guardar)
         botones.addWidget(btn_descartar)
 
         layout.addWidget(header)
+        layout.addWidget(QLabel("Código generado:"))
+        layout.addWidget(self.code_display)
         layout.addWidget(QLabel("<b>Ejemplo</b>"))
         layout.addWidget(grafico)
         layout.addLayout(botones)
@@ -227,6 +238,10 @@ class Consulta(QMainWindow):
         self._script_window = Script()
         page = self._script_window.centralWidget()
         self.central_widget.addWidget(page)
+
+    def _ver_scripts(self):
+        self._script_window._refrescar_arbol("consultas")
+        self.switch_tab(3)
 
     def init_pantalla_admin(self):
         if self.role == "admin":
@@ -256,6 +271,8 @@ class Consulta(QMainWindow):
             return
         prompt = construir_prompt(df, consulta)
 
+        logging.info(f"Prompt construido: {prompt[:200]}...")  # Log parte del prompt
+
         # 3. Mostrar indicador de carga
         self.loading_label = QLabel("Procesando consulta con IA, por favor espera...")
         widget = self.central_widget.widget(1)
@@ -271,17 +288,44 @@ class Consulta(QMainWindow):
         self.worker.start()
 
     def _on_ollama_exito(self, codigo, df, consulta):
-        # Quitar indicador de carga
-        self.loading_label.deleteLater()
-        # Guardar el script (puedes pedir carpeta/nombre o usar valores por defecto)
-        exito, msg = guardar_script("consultas", f"consulta_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}", codigo)
-        if not exito:
-            QMessageBox.warning(self, "Error al guardar script", msg)
-        # Navegar a pantalla 3
-        self.central_widget.setCurrentIndex(2)
-        self.switch_tab(2)
+        try:
+            # Quitar indicador de carga
+            self.loading_label.deleteLater()
+            
+            # Validar que el código no esté vacío
+            if not codigo or not codigo.strip():
+                QMessageBox.warning(self, "Error IA", "El código generado por Ollama está vacío.")
+                return
+            
+            # Almacenar el código para mostrarlo en la pantalla de resultado
+            self.generated_code = codigo
+            
+            # Intentar guardar el script
+            nombre_script = f"consulta_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}"
+            exito, msg = guardar_script("consultas", nombre_script, codigo)
+            if not exito:
+                QMessageBox.warning(self, "Error al guardar script", f"No se pudo guardar el script: {msg}")
+                return
+            
+            # Refrescar la lista de scripts para que aparezcan los nuevos
+            self._script_window._refrescar_arbol()
+            
+            # Actualizar el display con el código generado
+            self.code_display.setPlainText(self.generated_code)
+            logging.info("Código recibido de Ollama (%d chars): %s...", len(codigo), codigo[:200])
+
+            # Si todo bien, navegar a la pestaña de resultado (índice 2)
+            self.central_widget.setCurrentIndex(2)
+            self.switch_tab(2)
+
+            # Opcional: Mostrar mensaje de éxito
+            QMessageBox.information(self, "Éxito", f"Script generado y guardado como '{nombre_script}'.")
+
+        except Exception as e:
+            QMessageBox.warning(self, "Error inesperado", f"Ocurrió un error al procesar la respuesta: {type(e).__name__}: {e}")
 
     def _on_ollama_error(self, error_msg):
+        logging.error(f"Error de Ollama: {error_msg}")
         self.loading_label.deleteLater()
         QMessageBox.warning(self, "Error IA", error_msg)
 

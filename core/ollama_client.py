@@ -1,3 +1,4 @@
+import logging
 import requests
 from PyQt6.QtCore import QThread, pyqtSignal
 
@@ -23,6 +24,9 @@ def llamar_ollama(prompt: str) -> tuple[bool, str]:
         "stream": False,
     }
 
+    logging.info("Enviando prompt a Ollama. Largo prompt: %d", len(prompt))
+    logging.debug("Prompt: %s", prompt[:400])
+
     try:
         response = requests.post(OLLAMA_URL, json=payload, timeout=TIMEOUT_SEG)
         response.raise_for_status()
@@ -41,6 +45,9 @@ def llamar_ollama(prompt: str) -> tuple[bool, str]:
     except Exception as e:
         return False, f"Error inesperado: {e}"
 
+    logging.info("Ollama respondió status %s", response.status_code)
+    logging.debug("Respuesta cruda de Ollama (completa): %s", response.text)
+
     try:
         codigo = response.json().get("response", "").strip()
     except Exception:
@@ -49,8 +56,12 @@ def llamar_ollama(prompt: str) -> tuple[bool, str]:
     if not codigo:
         return False, "Ollama devolvió una respuesta vacía."
 
+    logging.debug("Código ANTES de _limpiar_markdown (%d chars):\n%s", len(codigo), codigo)
+
     # Limpiar bloques de markdown si el modelo los incluyó a pesar de las instrucciones
     codigo = _limpiar_markdown(codigo)
+
+    logging.debug("Código DESPUÉS de _limpiar_markdown (%d chars):\n%s", len(codigo), codigo)
 
     return True, codigo
 
@@ -59,8 +70,21 @@ def _limpiar_markdown(texto: str) -> str:
     """
     Elimina bloques de markdown (```python ... ``` o ``` ... ```) que el modelo
     puede incluir aunque el prompt lo prohíba explícitamente.
+
+    Solo actúa si detecta al menos un bloque markdown real (apertura + cierre).
+    Si no hay bloques, devuelve el texto sin modificar para evitar falsos positivos
+    donde una línea con ``` dentro del código generado active el toggle y descarte
+    el resto del script.
     """
     lineas = texto.splitlines()
+
+    # Detectar si hay bloques markdown reales (al menos una apertura y un cierre)
+    marcadores = [i for i, l in enumerate(lineas) if l.strip().startswith("```")]
+    if len(marcadores) < 2:
+        # Sin bloques completos: no tocar el texto
+        return texto.strip()
+
+    # Hay bloques: extraer solo el contenido dentro de ellos
     resultado = []
     dentro_bloque = False
 
@@ -69,11 +93,12 @@ def _limpiar_markdown(texto: str) -> str:
         if stripped.startswith("```"):
             dentro_bloque = not dentro_bloque
             continue
-        if not dentro_bloque:
+        if dentro_bloque:
             resultado.append(linea)
 
-    # Si el modelo no usó bloques, devolver el texto original sin modificar
     texto_limpio = "\n".join(resultado).strip()
+
+    # Fallback: si la extracción resultó vacía (bloques vacíos), devolver original
     return texto_limpio if texto_limpio else texto.strip()
 
 
@@ -98,9 +123,14 @@ class OllamaWorker(QThread):
         self.prompt = prompt
 
     def run(self):
-        ok, resultado = llamar_ollama(self.prompt)
-        if ok:
-            self.exito.emit(resultado)
-        else:
-            self.error.emit(resultado)
-                      
+        try:
+            ok, resultado = llamar_ollama(self.prompt)
+            if ok:
+                if not resultado.strip():  # Verificar si el código está vacío
+                    self.error.emit("Ollama devolvió una respuesta vacía.")
+                else:
+                    self.exito.emit(resultado)
+            else:
+                self.error.emit(resultado)
+        except Exception as e:
+            self.error.emit(f"Error inesperado en el worker: {type(e).__name__}: {e}")
