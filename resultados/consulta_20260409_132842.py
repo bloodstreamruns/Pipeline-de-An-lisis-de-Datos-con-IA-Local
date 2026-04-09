@@ -1,0 +1,1 @@
+resultado = str(df['salario_anual'].mean())
