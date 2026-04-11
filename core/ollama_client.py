@@ -9,14 +9,14 @@ TIMEOUT_SEG  = 120   # Phi-4 puede tardar en responder en hardware de consumo
 
 # ── Cliente HTTP síncrono ──────────────────────────────────────────────────────
 
-def llamar_ollama(prompt: str) -> tuple[bool, str]:
+def llamar_ollama(prompt: str) -> tuple[bool, str, str]:
     """
     Envía el prompt a Phi-4 vía la API REST local de Ollama.
 
     Returns
     -------
-    (True,  codigo_generado)  si la llamada tuvo éxito.
-    (False, mensaje_error)    si hubo un error de conexión o respuesta inesperada.
+    (True,  nombre,         codigo)  si la llamada tuvo éxito.
+    (False, mensaje_error,  "")      si hubo un error de conexión o respuesta inesperada.
     """
     payload = {
         "model":  MODELO,
@@ -34,16 +34,16 @@ def llamar_ollama(prompt: str) -> tuple[bool, str]:
         return False, (
             "No se pudo conectar con Ollama.\n"
             "Asegúrese de que el servicio esté corriendo: ejecute 'ollama serve' en la terminal."
-        )
+        ), ""
     except requests.exceptions.Timeout:
         return False, (
             f"La solicitud superó el tiempo límite de {TIMEOUT_SEG} segundos.\n"
             "El modelo puede estar sobrecargado. Intente de nuevo."
-        )
+        ), ""
     except requests.exceptions.HTTPError as e:
-        return False, f"Error HTTP {e.response.status_code}: {e}"
+        return False, f"Error HTTP {e.response.status_code}: {e}", ""
     except Exception as e:
-        return False, f"Error inesperado: {e}"
+        return False, f"Error inesperado: {e}", ""
 
     logging.info("Ollama respondió status %s", response.status_code)
     logging.debug("Respuesta cruda de Ollama (completa): %s", response.text)
@@ -51,19 +51,57 @@ def llamar_ollama(prompt: str) -> tuple[bool, str]:
     try:
         codigo = response.json().get("response", "").strip()
     except Exception:
-        return False, "La respuesta de Ollama no pudo ser procesada como JSON."
+        return False, "La respuesta de Ollama no pudo ser procesada como JSON.", ""
 
     if not codigo:
-        return False, "Ollama devolvió una respuesta vacía."
+        return False, "Ollama devolvió una respuesta vacía.", ""
 
-    logging.debug("Código ANTES de _limpiar_markdown (%d chars):\n%s", len(codigo), codigo)
+    logging.debug("Respuesta ANTES de parsear (%d chars):\n%s", len(codigo), codigo)
+
+    # Parsear nombre y código de la respuesta estructurada
+    nombre, codigo = _parsear_respuesta(codigo)
 
     # Limpiar bloques de markdown si el modelo los incluyó a pesar de las instrucciones
     codigo = _limpiar_markdown(codigo)
 
-    logging.debug("Código DESPUÉS de _limpiar_markdown (%d chars):\n%s", len(codigo), codigo)
+    logging.debug("Nombre: %s | Código (%d chars):\n%s", nombre, len(codigo), codigo)
 
-    return True, codigo
+    return True, nombre, codigo
+
+
+def _parsear_respuesta(texto: str) -> tuple[str, str]:
+    """
+    Parsea la respuesta estructurada del modelo, que debe tener el formato:
+
+        NOMBRE: nombre_en_snake_case
+        CODIGO:
+        <código Python>
+
+    Retorna (nombre, codigo). Si el modelo no respetó el formato, devuelve
+    un nombre genérico basado en timestamp y el texto completo como código.
+    """
+    import re
+    from datetime import datetime
+
+    nombre_fallback = f"consulta_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
+    # Buscar NOMBRE: ... (puede tener espacios, mayúsculas/minúsculas)
+    match_nombre = re.search(r'(?i)^nombre\s*:\s*(.+)$', texto, re.MULTILINE)
+    # Buscar CODIGO: y tomar todo lo que sigue
+    match_codigo = re.search(r'(?i)^codigo\s*:\s*\n([\s\S]+)', texto, re.MULTILINE)
+
+    if match_nombre and match_codigo:
+        nombre = match_nombre.group(1).strip()
+        # Sanitizar: solo letras, números y guiones bajos
+        nombre = re.sub(r'[^a-zA-Z0-9_]', '_', nombre)
+        nombre = re.sub(r'_+', '_', nombre).strip('_')
+        nombre = nombre[:60] if nombre else nombre_fallback
+        codigo = match_codigo.group(1).strip()
+        return nombre, codigo
+
+    # Fallback: el modelo no respetó el formato, usar texto completo como código
+    logging.warning("La respuesta no tiene el formato NOMBRE/CODIGO esperado. Usando fallback.")
+    return nombre_fallback, texto.strip()
 
 
 def _limpiar_markdown(texto: str) -> str:
@@ -124,13 +162,14 @@ class OllamaWorker(QThread):
 
     def run(self):
         try:
-            ok, resultado = llamar_ollama(self.prompt)
+            ok, nombre_o_error, codigo = llamar_ollama(self.prompt)
             if ok:
-                if not resultado.strip():  # Verificar si el código está vacío
+                if not codigo.strip():
                     self.error.emit("Ollama devolvió una respuesta vacía.")
                 else:
-                    self.exito.emit(resultado)
+                    # Emitir "nombre||codigo" para que el receptor los separe
+                    self.exito.emit(f"{nombre_o_error}||{codigo}")
             else:
-                self.error.emit(resultado)
+                self.error.emit(nombre_o_error)
         except Exception as e:
             self.error.emit(f"Error inesperado en el worker: {type(e).__name__}: {e}")

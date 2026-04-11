@@ -81,8 +81,15 @@ CONSULTA DEL USUARIO
 
 INSTRUCCIONES ESTRICTAS
 =======================
-1. Responde ÚNICAMENTE con código Python ejecutable. No escribas texto explicativo,
-   comentarios en prosa, ni bloques de markdown (no uses ```python ni ```).
+1. Tu respuesta debe tener EXACTAMENTE este formato, sin excepciones:
+
+   NOMBRE: nombre_descriptivo_en_snake_case
+   CODIGO:
+   <código Python aquí>
+
+   El NOMBRE debe ser snake_case, máximo 5 palabras, descriptivo del análisis.
+   El CODIGO debe ser código Python ejecutable puro, sin texto explicativo,
+   sin comentarios en prosa, sin bloques de markdown (no uses ```python ni ```).
 2. Las siguientes librerías ya están importadas en el entorno y disponibles directamente:
    pandas as pd, matplotlib.pyplot as plt, seaborn as sns.
    El DataFrame ya cargado se llama `df`. Úsalas sin importarlas de nuevo.
@@ -93,7 +100,7 @@ INSTRUCCIONES ESTRICTAS
    NUNCA uses named aggregation con tuplas dentro de agg (e.g. agg(nombre=('col', 'func'))).
 5. El código debe ser correcto y ejecutarse sin errores dado el dataset descrito.
 
-CÓDIGO PYTHON:
+RESPUESTA:
 """
 
     return prompt

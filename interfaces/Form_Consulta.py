@@ -294,25 +294,33 @@ class Consulta(QMainWindow):
 
         # 4. Instanciar y lanzar el worker
         self.worker = OllamaWorker(prompt)
-        self.worker.exito.connect(lambda codigo: self._on_ollama_exito(codigo, df, consulta))
+        self.worker.exito.connect(lambda payload: self._on_ollama_exito(payload, df, consulta))
         self.worker.error.connect(self._on_ollama_error)
         self.worker.start()
 
-    def _on_ollama_exito(self, codigo, df, consulta):
+    def _on_ollama_exito(self, payload: str, df, consulta):
+        # El worker emite "nombre||codigo"; separar aquí para mayor claridad
+        separador = "||"
+        if separador in payload:
+            nombre, codigo = payload.split(separador, 1)
+        else:
+            # Fallback: el payload no tiene el separador esperado
+            nombre = f"consulta_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}"
+            codigo = payload
         try:
             # Quitar indicador de carga
             self.loading_label.deleteLater()
-            
+
             # Validar que el código no esté vacío
             if not codigo or not codigo.strip():
                 QMessageBox.warning(self, "Error IA", "El código generado por Ollama está vacío.")
                 return
-            
+
             # Almacenar el código para mostrarlo en la pantalla de resultado
             self.generated_code = codigo
-            
-            # Intentar guardar el script
-            nombre_script = f"consulta_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}"
+
+            # Usar el nombre generado por el modelo; fallback a timestamp si está vacío
+            nombre_script = nombre if nombre else f"consulta_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}"
             exito, msg = guardar_script("consultas", nombre_script, codigo)
             if not exito:
                 QMessageBox.warning(self, "Error al guardar script", f"No se pudo guardar el script: {msg}")
