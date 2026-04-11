@@ -2,3 +2,4 @@
 # independiente con su layout, widgets y conexiones a los módulos de core/. 
 # Las pantallas son instanciadas y gestionadas desde app.py.
 # Fin
+# Fin
