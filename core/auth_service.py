@@ -72,7 +72,7 @@ class AuthService():
         finally:
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
-                
+
     def _migrar_password(self, username: str, plain: str) -> None:
         usuarios = self._cargar_usuarios()
         for u in usuarios:
@@ -100,3 +100,30 @@ class AuthService():
             self._migrar_password(username, password)
 
         return usuario
+    
+    def obtener_usuarios(self) -> list:
+        return self._cargar_usuarios()
+
+    def crear_usuario(self, username: str, password: str, role: str) -> None:
+        usuarios = self._cargar_usuarios()
+        nuevo = {
+            "username": username,
+            "password": SecurityUtils.hash_password(password),
+            "role": role,
+            "initials": username[:2].upper()
+        }
+        usuarios.append(nuevo)
+        self._guardar_usuarios(usuarios)
+
+    def eliminar_usuario(self, username: str) -> None:
+        usuarios = self._cargar_usuarios()
+        usuarios = [u for u in usuarios if u["username"].lower() != username.lower()]
+        self._guardar_usuarios(usuarios)
+
+    def cambiar_contrasena(self, username: str, nueva_password: str) -> None:
+        usuarios = self._cargar_usuarios()
+        for u in usuarios:
+            if u["username"].lower() == username.lower():
+                u["password"] = SecurityUtils.hash_password(nueva_password)
+                break
+        self._guardar_usuarios(usuarios)    

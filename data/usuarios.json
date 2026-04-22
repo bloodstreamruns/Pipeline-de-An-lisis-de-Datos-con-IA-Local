@@ -2,25 +2,13 @@
     "usuarios": [
         {
             "username": "admin",
-            "password": "123",
+            "password": "$2b$12$e7acP.BujFR22Fc3z0PcOeW6i8y5OSxXdMz8PPWtFGOEn542Zzwbu",
             "role": "admin",
             "initials": "AD"
         },
         {
-            "username": "admin 2",
-            "password": "123456",
-            "role": "admin",
-            "initials": "AD"
-        },
-        {
-            "username": "nquintero",
-            "password": "123456",
-            "role": "usuario",
-            "initials": "NQ"
-        },
-        {
-            "username": "daniel",
-            "password": "123",
+            "username": "daniel2",
+            "password": "$2b$12$2wEPKf.lBDNhrGewVRyHBuhN9KofWA3ZxGMG9yp4ocO4VcuUVt6NG",
             "role": "usuario",
             "initials": "DA"
         }

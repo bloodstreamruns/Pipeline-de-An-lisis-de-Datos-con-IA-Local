@@ -13,9 +13,9 @@ def main():
 
     login = LoginScreen()
 
-    def on_login(username, role):
+    def on_login(usuario: dict):
         login.close()
-        abrir_app(username, role)
+        abrir_app(usuario)
 
     login.login_exitoso.connect(on_login)
     login.show()
@@ -23,11 +23,12 @@ def main():
     sys.exit(app.exec())
 
 
-def abrir_app(username: str, role: str):
+def abrir_app(usuario: dict):
     global _consulta
 
-    # Consulta recibe el rol para decidir qué botones mostrar
-    # y qué páginas incluir en el QStackedWidget
+    username = usuario.get("username", "")
+    role     = usuario.get("role", "usuario")
+
     _consulta = Consulta(role=role)
     _consulta.setWindowTitle(f"DataPipeline AI — {username}")
 

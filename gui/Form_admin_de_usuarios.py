@@ -6,7 +6,6 @@ from PyQt6.QtWidgets import (
     QLineEdit, QPushButton, QScrollArea, QFrame
 )
 from PyQt6.QtCore import Qt
-import api.administrador_autenticacion
 from api.logica_administrador import AdminLogic
 
 APP_STYLE = """
@@ -124,7 +123,7 @@ class LeftPanel(QFrame):
         while self.rows_layout.count() > 1:
             item = self.rows_layout.takeAt(0)
             if item.widget(): item.widget().deleteLater() # type: ignore
-        for u in api.administrador_autenticacion.obtener_lista_usuarios():
+        for u in self.logic.auth.obtener_usuarios():
             self.rows_layout.insertWidget(
                 self.rows_layout.count() - 1,
                 UserRow(u, self.logic, on_select=self._on_select)
