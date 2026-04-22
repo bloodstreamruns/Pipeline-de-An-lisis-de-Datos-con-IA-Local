@@ -1,5 +1,4 @@
 import bcrypt
-import hashlib
 
 class SecurityUtils:
     @staticmethod
