@@ -19,7 +19,7 @@ class AuthServiceError(Exception):
     pass
 
 
-class autenticar():
+class AuthService():
     def __init__(self, db_path: str = DB_PATH):
         self.db_path = db_path
 
@@ -40,9 +40,9 @@ class autenticar():
             raise AuthServiceError(
                 f"El archivo {self.db_path} contiene caracteres no válidos en UTF-8"
             )
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
             raise AuthServiceError(
-                f"El archivo {self.db_path} contiene JSON inválido: {e.msg} (línea {e.lineno})"
+                f"El archivo {self.db_path} contiene JSON inválido: {e}"
             )
         except OSError as e:
             raise AuthServiceError(
@@ -50,5 +50,53 @@ class autenticar():
             )
     
     def _guardar_usuarios(self, usuarios: list) -> None:
-        with open(self.db_path, "w", encoding="utf-8") as f:
-            json.dump({"usuarios": usuarios}, f, indent=4, ensure_ascii=False)
+        dir_path = os.path.dirname(self.db_path)
+        tmp_path = os.path.join(dir_path, ".usuarios.tmp")
+
+        try:
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump({"usuarios": usuarios}, f, indent=4, ensure_ascii=False)
+            os.replace(tmp_path, self.db_path)
+        except PermissionError:
+            raise AuthServiceError(
+                f"Sin permisos de escritura en {dir_path}"
+            )
+        except TypeError as e:
+            raise AuthServiceError(
+                f"Los datos contienen un tipo no serializable: {e}"
+            )
+        except OSError as e:
+            raise AuthServiceError(
+                f"Error de I/O al guardar {self.db_path}: {e}"
+            )
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+                
+    def _migrar_password(self, username: str, plain: str) -> None:
+        usuarios = self._cargar_usuarios()
+        for u in usuarios:
+            if u.get("username", "").lower() == username.lower():
+                u["password"] = SecurityUtils.hash_password(plain)
+                break
+        self._guardar_usuarios(usuarios)
+
+    def autenticar(self, username: str, password: str) -> dict | None:
+        usuarios = self._cargar_usuarios()
+        usuario = next(
+            (u for u in usuarios if u.get("username", "").lower() == username.lower()),
+            None
+        )
+
+        if usuario is None:
+            return None
+
+        stored = usuario.get("password", "")
+
+        if not SecurityUtils.verify_password(password, stored):
+            return None
+
+        if not stored.startswith("$2b$"):
+            self._migrar_password(username, password)
+
+        return usuario

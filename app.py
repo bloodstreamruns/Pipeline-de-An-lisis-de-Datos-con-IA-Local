@@ -4,7 +4,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from PyQt6.QtWidgets import QApplication
 
-from gui.Registro import LoginScreen
+from gui.login import LoginScreen
 from gui.Form_Consulta import Consulta
 
 
