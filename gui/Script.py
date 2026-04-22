@@ -4,7 +4,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from typing import Optional
 import pandas as pd
-from lógica.logica_scripts import (
+from api.logica_scripts import (
     obtener_arbol,
     crear_carpeta,
     renombrar_carpeta,

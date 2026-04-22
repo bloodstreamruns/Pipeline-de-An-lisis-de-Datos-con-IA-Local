@@ -4,8 +4,8 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from PyQt6.QtWidgets import QApplication
 
-from interfaces.Registro import LoginScreen
-from interfaces.Form_Consulta import Consulta
+from gui.Registro import LoginScreen
+from gui.Form_Consulta import Consulta
 
 
 def main():
